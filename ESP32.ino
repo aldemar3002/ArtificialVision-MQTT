@@ -8,11 +8,11 @@ const char* ssid = "Park-P12-Depa7";
 const char* password = "ParkLifeP12-d7";
 
 // Configuración MQTT
-const char* mqtt_server = "172.18.1.7";  // Dirección IP del broker MQTT
+const char* mqtt_server = "172.18.0.92";  // Dirección IP del broker MQTT
 const int mqtt_port = 1883;
 
 // Configuración DHT11
-#define DHTPIN 23    // Pin donde está conectado el sensor DHT11
+#define DHTPIN 13    // Pin donde está conectado el sensor DHT11
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -22,8 +22,8 @@ const int ledPin = 2; // Pin donde está conectado el LED
 // Configuración de Servomotores
 Servo servo1;  // Primer servomotor
 Servo servo2;  // Segundo servomotor
-const int servoPin1 = 18;  // Pin para el primer servo
-const int servoPin2 = 19;  // Pin para el segundo servo
+const int servoPin1 = 25;  // Pin para el primer servo
+const int servoPin2 = 26;  // Pin para el segundo servo
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -53,7 +53,7 @@ void reconnect() {
     if (client.connect("ESP32Client")) {  // Conexión sin usuario ni contraseña
       Serial.println("conectado");
       client.subscribe("esp32/LED");        // Suscripción para controlar el LED
-      client.subscribe("tomate/detector");  // Suscripción para el detector de jitomates
+      client.subscribe("servos/sensor");  // Suscripción para el detector de jitomates
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -65,18 +65,17 @@ void reconnect() {
 
 // Función para cosechar jitomates
 void cosechar() {
-  // Mover servo1 a la posición deseada para cosechar
-  servo1.write(90);  // Ajusta este ángulo según lo necesites
-  delay(1000);       // Espera un segundo
+  // Mover servo1 y servo2 a la posición deseada para cosechar
+  servo1.write(180);  // Ángulo de trabajo
+  servo2.write(180);  // Ángulo de trabajo
+  delay(1000);        // Espera un segundo (simula el tiempo de cosecha)
   
-  // Mover servo2 a la posición deseada para cosechar
-  servo2.write(90);  // Ajusta este ángulo según lo necesites
-  delay(1000);
-  
-  // Regresar los servos a la posición inicial
-  servo1.write(0);
-  servo2.write(0);
+  // Después de la cosecha, regresa los servos a una posición intermedia o de reposo
+  servo1.write(90);   // Posición de reposo (ajusta este valor según lo necesites)
+  servo2.write(90);   // Posición de reposo
+  delay(1000);        // Espera un segundo para finalizar
 }
+
 
 // Función callback para manejar mensajes MQTT
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -93,7 +92,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     }
   }
 
-  if (String(topic) == "tomate/detector") {
+  if (String(topic) == "servos/sensor") {
     if (message == "cosechar") {
       cosechar(); // Activar los servos para la cosecha
     }
