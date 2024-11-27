@@ -99,7 +99,7 @@ void reconnect() {
       client.subscribe("modalidad");
       client.subscribe("motor/derecha");
       client.subscribe("motor/izquierda");
-      client.subscribe("garra");
+      client.subscribe("motor/garra");
     } else {
       delay(5000);
     }
