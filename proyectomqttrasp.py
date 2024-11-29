@@ -4,25 +4,27 @@ import paho.mqtt.client as mqtt
 import time
 
 # Configuración de MQTT
-broker_address = "10.25.107.235"
+broker_address = "192.168.176.61"
 mqtt_topic_tomato = "laptop/tomate/x"
 mqtt_topic_square = "laptop/cuadrado/x"
+mqtt_topic_alignment = "laptop/ajuste/x"
 client = mqtt.Client("ObjectDetector")
-client.connect(broker_address)
+client.connect(broker_address, port=1883)
 
 # Conectar con la cámara
-cap = cv2.VideoCapture('http://10.25.111.103:4747/video')
+cap = cv2.VideoCapture('http://192.168.176.251:4747/video')
 
 # Definir el umbral de área mínima y máxima para la detección de jitomates y cuadrados
-min_area_tomato = 20000  # Ajustar según las pruebas
-max_area_tomato = 40000
+min_area_tomato = 10000  # Ajustar 
+max_area_tomato = 30000
 
-min_area_square = 5000  # Ajustar según las pruebas
+min_area_square = 2000  # Ajustar 
 max_area_square = 10000
 
 # Tiempo para controlar el envío de mensajes (en segundos)
 last_detection_time_tomato = 0
 last_detection_time_square = 0
+last_alignment_time = 0
 message_interval = 3
 
 # Crear el kernel para operaciones morfológicas
@@ -61,6 +63,10 @@ while True:
     detection_tomato = False
     detection_square = False
 
+    # Variables para almacenar los centroides
+    tomato_cX = None
+    square_cX = None
+
     # Procesar los contornos
     for contour in contours:
         area = cv2.contourArea(contour)
@@ -80,19 +86,19 @@ while True:
                     # Calcular el centroide
                     M = cv2.moments(contour)
                     if M["m00"] != 0:
-                        cX = int(M["m10"] / M["m00"])
+                        tomato_cX = int(M["m10"] / M["m00"])
                         cY = int(M["m01"] / M["m00"])
 
                         # Dibujar el centroide
-                        cv2.circle(frame, (cX, cY), 5, (0, 0, 255), -1)
-                        cv2.putText(frame, f"X: {cX}, Y: {cY}", (cX + 10, cY - 10),
+                        cv2.circle(frame, (tomato_cX, cY), 5, (0, 0, 255), -1)
+                        cv2.putText(frame, f"X: {tomato_cX}, Y: {cY}", (tomato_cX + 10, cY - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
                         detection_tomato = True
                         current_time = time.time()
 
                         if current_time - last_detection_time_tomato > message_interval:
-                            mensaje_tomato = f"Tomate detectado en X: {cX}, Y: {cY}"
+                            mensaje_tomato = f"{tomato_cX}"
                             print("Tomate -", mensaje_tomato)
                             client.publish(mqtt_topic_tomato, mensaje_tomato)
                             last_detection_time_tomato = current_time
@@ -109,22 +115,38 @@ while True:
                 # Calcular el centroide
                 M = cv2.moments(contour)
                 if M["m00"] != 0:
-                    cX = int(M["m10"] / M["m00"])
+                    square_cX = int(M["m10"] / M["m00"])
                     cY = int(M["m01"] / M["m00"])
 
                     # Dibujar el centroide
-                    cv2.circle(frame, (cX, cY), 5, (255, 0, 255), -1)
-                    cv2.putText(frame, f"X: {cX}, Y: {cY}", (cX + 10, cY - 10),
+                    cv2.circle(frame, (square_cX, cY), 5, (255, 0, 255), -1)
+                    cv2.putText(frame, f"X: {square_cX}, Y: {cY}", (square_cX + 10, cY - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
                     detection_square = True
                     current_time = time.time()
 
                     if current_time - last_detection_time_square > message_interval:
-                        mensaje_square = f"Cuadrado detectado en X: {cX}, Y: {cY}"
+                        mensaje_square = f"{square_cX}"
                         print("Pinza -", mensaje_square)
                         client.publish(mqtt_topic_square, mensaje_square)
                         last_detection_time_square = current_time
+
+    # Comparar las posiciones en X y enviar mensaje de ajuste
+    if tomato_cX is not None and square_cX is not None:
+        alignment_message = ""
+        if square_cX < tomato_cX - 10:  # Margen de 10 píxeles
+            alignment_message = "izquierda"
+        elif square_cX > tomato_cX + 10:
+            alignment_message = "derecha"
+        else:
+            alignment_message = "centrado"
+
+        current_time = time.time()
+        if current_time - last_alignment_time > message_interval:
+            client.publish(mqtt_topic_alignment, alignment_message)
+            print(f"Ajuste - {alignment_message}")
+            last_alignment_time = current_time
 
     # Mostrar la imagen original y la máscara
     cv2.imshow('Original', frame)
